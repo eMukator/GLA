@@ -1,0 +1,105 @@
+﻿@model LogParser.Models.MapViewModel
+
+@{
+    ViewData["Title"] = "Map";
+    ViewData["Source"] = Model.Data.Source + "/";
+
+    var games = Model.Data.Games.Where(x => x.Params["mapname"] == Model.MapName && x.Params["g_gametype"] == Model.GameType);
+    var elo = Elo.CalculateFor(games);
+    var colors = new string[] { "#007bff", "#20c997", "#6610f2", "#28a745", "#6f42c1", "#ffc107", "#e83e8c", "#fd7e14", "#dc3545" };
+
+    var playersData = games
+        .SelectMany(x => x.Players)
+        .GroupBy(x => x.Name)
+        .Select((x, j) => new
+        {
+            name = x.Key,
+            data = String.Join(",", x.SelectMany(y => y.Kills).OrderBy(y => y.Time).Select((y, i) => $"{{x:{y.Time},y:{i}}}")),
+            color = colors[j % 9]
+        });
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Map Summary: @Model.MapName [@Model.GameType]</li>
+    </ol>
+</nav>
+
+
+<div class="row">
+    <div class="col-12 mb-4">
+
+        <table class="table table-striped table-bordered table-sm">
+                <tr>
+                    <th colspan="3" class="bg-danger text-white text-center">Summary</th>
+                </tr>
+                <tr class="text-center">
+                    <th>Game Type</th>
+                    <th><img src="~/images/@(ViewData["Source"])gametypes/small/@(Model.GameType).png" class="img-fluid" /></th>
+                    <th rowspan="4"><img src="~/images/@(ViewData["Source"])maps/big/@(Model.MapName).jpg" class="img-fluid" /></th>
+                </tr>
+                <tr class="text-center">
+                    <th>Games Total</th>
+                    <td>@games.Count()</td>
+                </tr>
+                <tr class="text-center">
+                    <th>Time Total</th>
+                    <td>@TimeSpan.FromSeconds(games.Sum(x => x.Duration.TotalSeconds)).ToTimeSpan()</td>
+                </tr>
+                <tr class="text-center">
+                    <th>Avg. Players per Game</th>
+                    <td>@Math.Round(games.Average(x => x.Players.Count), 1)</td>
+                </tr>
+        </table>
+
+    </div>
+
+
+    <div class="col mb-4">
+        <table class="table table-striped table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th colspan="13" class="bg-danger text-white text-center">The Best Players Ordered by Frags</th>
+                </tr>
+                <tr class="text-center">
+                    <th>Name</th>
+                    <th class="rotate90">Frags</th>
+                    <th class="rotate90">Total Kills</th>
+                    <th class="rotate90">Grenade Kills</th>
+                    <th class="rotate90">Melee Kills</th>
+                    <th class="rotate90">Head Shots</th>
+                    <th class="rotate90">Deaths</th>
+                    <th class="rotate90">Suicides</th>
+                    <th class="rotate90">Efficiency</th>
+                    <th class="rotate90">Frags Per Hour</th>
+                    <th class="rotate90">Avg. Time to Live</th>
+                    <th class="rotate90">Time</th>
+                    <th class="rotate90">ELO Rating</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var player in games.SelectMany(x => x.Players).GroupBy(x => x.Name).OrderByDescending(x => x.Sum(y => y.Kills.Count) - x.Sum(y => y.Sucides)))
+                {
+                    <tr class="text-center">
+                        <th><a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@player.First().Name.PureName()">@Html.Raw(player.First().Name.FormatToHtml())</a></th>
+                        <td>@(player.Sum(x => x.Kills.Count) - player.Sum(x => x.Sucides))</td>
+                        <td>@player.Sum(x => x.Kills.Count)</td>
+                        <td>@player.Sum(x => x.Kills.Count(x => x.DamageType == "MOD_GRENADE_SPLASH"))</td>
+                        <td>@player.Sum(x => x.Kills.Count(x => x.DamageType == "MOD_MELEE"))</td>
+                        <td>@player.Sum(x => x.Kills.Count(x => x.DamageType == "MOD_HEAD_SHOT"))</td>
+                        <td>@player.Sum(x => x.Deaths.Count)</td>
+                        <td>@player.Sum(x => x.Sucides)</td>
+                        <td>@Math.Round((double)player.Sum(x => x.Kills.Count) / (player.Sum(x => x.Kills.Count) + player.Sum(x => x.Deaths.Count) + player.Sum(x => x.Sucides)) * 100, 1)%</td>
+                        <td>@Math.Round((double)(player.Sum(x => x.Kills.Count) - player.Sum(x => x.Sucides)) / player.Sum(x => x.Duration.TotalHours), 1)</td>
+                        <td>@Math.Round(player.Sum(x => x.Duration.TotalSeconds) / (player.Sum(x => x.Deaths.Count) + player.Sum(x => x.Sucides)), 1)</td>
+                        <td>@TimeSpan.FromSeconds(player.Sum(x => x.Duration.TotalSeconds)).ToTimeSpan()</td>
+                        <td>@elo[player.First().Name.PureName()].ToString("0.00")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+
+</div>

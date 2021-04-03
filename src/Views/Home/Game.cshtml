@@ -1,0 +1,399 @@
+﻿@model LogParser.Models.GameViewModel
+
+@{
+    ViewData["Title"] = "Game";
+    ViewData["Source"] = Model.Data.Source + "/";
+
+    var lastGame = Model.Data.Games.FirstOrDefault(x => x.Id == Model.GameId);
+    var colors = new string[] { "#007bff", "#20c997", "#6610f2", "#28a745", "#6f42c1", "#ffc107", "#e83e8c", "#fd7e14", "#dc3545" };
+    var playersData = lastGame.Players.SelectMany(x => x.Kills).GroupBy(x => x.Owner)
+        .Select((x, i) => new
+        {
+            key = x.Key.Name,
+            color = colors[i % 9],
+            data = String.Join(",",
+                $"{{x:{Math.Round(TimeSpan.FromSeconds(x.Key.StartInSeconds - lastGame.StartInSeconds).TotalMinutes, 2)},y:0}}",
+                String.Join(",", x.Select(y => $"{{x:{Math.Round(TimeSpan.FromSeconds(y.Time - lastGame.StartInSeconds).TotalMinutes, 2)},y:{y.No}}}")),
+                $"{{x:{Math.Round(TimeSpan.FromSeconds(x.Key.FinishInSeconds - lastGame.StartInSeconds).TotalMinutes, 2)},y:{x.Key.Kills.Count}}}")
+        });
+    var excludedParams = new string[] { "gamename", "g_gametype", "mapname", "shortversion" };
+    var killerWeapons = lastGame.Players.SelectMany(x => x.Kills).GroupBy(x => x.Weapon);
+    var victimWeapons = lastGame.Players.SelectMany(x => x.Deaths).GroupBy(x => x.Weapon2).Select(x => new { x.Key, Count = x.Count() });
+    var elo = Elo.CalculateDeltaFor(Model.Data.Games.Where(x => x.Id <= Model.GameId));
+
+    async Task DrawEloDeltas(decimal val)
+    {
+        if (val >= 0)
+        {
+            <text><i class="fa fa-arrow-up text-success"></i> +@val.ToString("0.00")</text>
+        }
+        else
+        {
+            <text><i class="fa fa-arrow-down text-danger"></i> @val.ToString("0.00")</text>
+        }
+    }
+}
+
+<div class="row">
+    <div class="col-8">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Game: #@Model.GameId</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="col-4">
+        <ul class="nav justify-content-end">
+            <li class="nav-item">
+                @if (Model.Data.Games.Any(x => x.Id > Model.GameId))
+                {
+                    <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Game" asp-route-id="@Model.Data.Games.Where(x => x.Id > Model.GameId).OrderBy(x => x.Id).First().Id"><i class="fa fa-2x fa-arrow-alt-circle-left"></i></a>
+                }
+                else
+                {
+                    <a class="nav-link disabled" href=""><i class="fa fa-2x fa-arrow-alt-circle-left"></i></a>
+                }
+            </li>
+            <li class="nav-item">
+                @if (Model.Data.Games.Any(x => x.Id < Model.GameId))
+                {
+                    <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Game" asp-route-id="@Model.Data.Games.Where(x => x.Id < Model.GameId).OrderByDescending(x => x.Id).First().Id"><i class="fa fa-2x fa-arrow-alt-circle-right"></i></a>
+                }
+                else
+                {
+                    <a class="nav-link disabled" href=""><i class="fa fa-2x fa-arrow-alt-circle-right"></i></a>
+                }
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="row">
+
+    <div class="col-12 mb-4">
+        <table class="table table-borderless table-sm">
+            <tr>
+                <th class="bg-danger text-white text-center">Kills vs Time For All Players</th>
+            </tr>
+            <tr>
+                <td>
+                    <canvas class="my-4 w-100" id="myChart"></canvas>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+
+    @foreach (var teams in lastGame.Players.GroupBy(x => x.TeamName))
+    {
+        var winner = (lastGame.IsTeamGame && teams.Key == lastGame.WonTeam);
+        <div class="col mb-4">
+            <table class="table table-striped table-bordered table-sm table-responsive-sm">
+                <thead>
+                    <tr>
+                        <th colspan="14" class="bg-danger text-white text-center">
+                            Team: <img src="~/images/@(ViewData["Source"])main/flag-@(String.IsNullOrWhiteSpace(teams.Key) ? "winner" : teams.Key)-small.png" alt="@teams.Key" title="@teams.Key" />
+                        </th>
+                    </tr>
+                    <tr class="text-center">
+                        <th>
+                            @if (winner)
+                            {
+                                <img src="~/images/@(ViewData["Source"])main/dm-winner-middle.png" title="winner" alt="winner" /><br />
+                            }
+                            <span>Name</span>
+                        </th>
+                        <th class="rotate90">Frags</th>
+                        <th class="rotate90">Total Kills</th>
+                        <th class="rotate90">Grenade Kills</th>
+                        <th class="rotate90">Melee Kills</th>
+                        <th class="rotate90">Head Shots</th>
+                        <th class="rotate90">Deaths</th>
+                        <th class="rotate90">Suicides</th>
+                        <th class="rotate90">Efficiency</th>
+                        <th class="rotate90">Frags Per Hour</th>
+                        <th class="rotate90">Avg. Time to Live</th>
+                        <th class="rotate90">Time</th>
+                        <th class="rotate90">ELO</th>
+                        <th class="rotate90">&#916; ELO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var player in teams.OrderByDescending(x => x.Kills.Count).ThenBy(x => x.Deaths.Count))
+                    {
+                        var plData = playersData.FirstOrDefault(x => x.key == player.Name);
+                        <tr class="text-center">
+                            <th class="text-left text-nowrap">
+                                @if (plData != null)
+                                {
+                                    <i class="fas fa-square" style="color:@plData.color"></i>
+                                }
+                                <a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@player.Name.PureName()">@Html.Raw(player.Name.FormatToHtml())</a>
+                            </th>
+                            <td>@(player.Kills.Count - player.Sucides)</td>
+                            <td>@player.Kills.Count</td>
+                            <td>@player.Kills.Count(x => x.DamageType == "MOD_GRENADE_SPLASH")</td>
+                            <td>@player.Kills.Count(x => x.DamageType == "MOD_MELEE")</td>
+                            <td>@player.Kills.Count(x => x.DamageType == "MOD_HEAD_SHOT")</td>
+                            <td>@player.Deaths.Count</td>
+                            <td>@player.Sucides</td>
+                            <td>@Math.Round((double)player.Kills.Count / (player.Kills.Count + player.Deaths.Count + player.Sucides) * 100, 1)%</td>
+                            <td>@Math.Round((double)(player.Kills.Count - player.Sucides) / player.Duration.TotalHours, 1)</td>
+                            <td>@Math.Round(player.Duration.TotalSeconds / (player.Deaths.Count + player.Sucides), 1)</td>
+                            <td>@player.Duration.ToTimeSpan()</td>
+                            <td>@elo[player.Name.PureName()].Item1.ToString("0.00")</td>
+                            <td class="text-nowrap">@{ await DrawEloDeltas(elo[player.Name.PureName()].Item2); }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="row">
+            <div class="col mb-4">
+
+                <table class="table table-bordered table-sm">
+                    <tr>
+                        <th colspan="@(lastGame.Players.Count + 2)" class="bg-danger text-white text-center">Kills Match Up</th>
+                    </tr>
+                    <tr>
+                        <td colspan="2" rowspan="2" class="table-dark"></td>
+                        <th colspan="@lastGame.Players.Count" class="text-center table-dark">Victim</th>
+                    </tr>
+                    <tr>
+                        @foreach (var player in lastGame.Players)
+                        {
+                            <th class="rotate90"><a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@player.Name.PureName()">@Html.Raw(player.Name.FormatToHtml())</a></th>
+                        }
+                    </tr>
+                    <tr class="text-center">
+                        <th rowspan="@lastGame.Players.Count" class="rotate90 table-dark">Killer</th>
+                        <th><a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@lastGame.Players.First().Name.PureName()">@Html.Raw(lastGame.Players.First().Name.FormatToHtml())</a></th>
+                        @foreach (var player in lastGame.Players)
+                        {
+                            var p = lastGame.Players.First().Name;
+
+                            if (player.Name != p)
+                            {
+                                <td>@player.Deaths.Count(x => x.Player == p)</td>
+                            }
+                            else
+                            {
+                                <td class="bg-secondary"></td>
+                            }
+                        }
+                    </tr>
+                    @foreach (var player in lastGame.Players.Skip(1))
+                    {
+                        <tr class="text-center">
+                            <th><a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@player.Name.PureName()">@Html.Raw(player.Name.FormatToHtml())</a></th>
+                            @foreach (var inPlayer in lastGame.Players)
+                            {
+                                var p = player.Name;
+                                if (inPlayer.Name != p)
+                                {
+                                    <td>@inPlayer.Deaths.Count(x => x.Player == p)</td>
+                                }
+                                else
+                                {
+                                    <td class="bg-secondary"></td>
+                                }
+                            }
+                        </tr>
+                    }
+
+                </table>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col mb-4">
+                <table class="table table-bordered table-sm table-responsive-sm">
+                    <caption>* - The numbers of deaths are only estimates.</caption>
+                    <thead>
+                        <tr>
+                            <th colspan="6" class="bg-danger text-white text-center">Weapon Specific Information*</th>
+                        </tr>
+                        <tr class="text-center">
+                            <th>Weapon</th>
+                            <th>Frags</th>
+                            <th>Kills</th>
+                            <th>Deaths</th>
+                            <th>Suicides</th>
+                            <th>Efficiency</th>
+                        </tr>
+                    </thead>
+                    <tbody class="align-middle text-center">
+
+                        @foreach (var weapon in killerWeapons.OrderByDescending(x => x.Count(y => y.DamageType != "MOD_SUICIDE")))
+                        {
+                            <tr>
+                                <th><img src="~/images/@(ViewData["Source"])weapons/small/@(weapon.Key).png" alt="@weapon.Key" title="@weapon.Key" /></th>
+                                <td>@weapon.Count(x => x.DamageType != "MOD_SUICIDE")</td>
+                                <td>@weapon.Count()</td>
+                                <td>@(victimWeapons.FirstOrDefault(x => x.Key == weapon.Key)?.Count ?? 0)</td>
+                                <td>@weapon.Count(x => x.DamageType == "MOD_SUICIDE")</td>
+                                <td>@Math.Round((double)weapon.Count() / (weapon.Count() + (victimWeapons.FirstOrDefault(x => x.Key == weapon.Key)?.Count ?? 0) + weapon.Count(x => x.DamageType == "MOD_SUICIDE")) * 100, 1)%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col mb-4">
+        <table class="table table-striped table-sm table-bordered">
+            <tr>
+                <th colspan="2" class="bg-danger text-white text-center">This Game</th>
+            </tr>
+            <tr>
+                <th>ID</th>
+                <td>@lastGame.Id</td>
+            </tr>
+            <tr>
+                <th>Duration</th>
+                <td>@lastGame.Duration.ToTimeSpan()</td>
+            </tr>
+            <tr>
+                <th>Game</th>
+                <td>@lastGame.Params["gamename"]</td>
+            </tr>
+            <tr>
+                <th>Game Version</th>
+                <td>@lastGame.Params["shortversion"]</td>
+            </tr>
+            <tr>
+                <th>Game Type</th>
+                <td>@lastGame.Params["g_gametype"]</td>
+            </tr>
+            <tr>
+                <th>Map</th>
+                <td>@lastGame.Params["mapname"]</td>
+            </tr>
+            <tr>
+                <td colspan="2" class="text-center"><img src="~/images/@(ViewData["Source"])maps/big/@(lastGame.Params["mapname"]).jpg" class="img-fluid" /></td>
+            </tr>
+            <tr>
+                <th>Players</th>
+                <td>@lastGame.Players.GroupBy(x => x.Name).Count()</td>
+            </tr>
+            <tr>
+                <th>Frags</th>
+                <td>@(lastGame.Players.Sum(x => x.Kills.Count) - lastGame.Players.Sum(x=> x.Sucides))</td>
+            </tr>
+            <tr>
+                <th>Kills</th>
+                <td>@lastGame.Players.Sum(x => x.Kills.Count)</td>
+            </tr>
+            <tr>
+                <th>Deaths</th>
+                <td>@lastGame.Players.Sum(x => x.Deaths.Count)</td>
+            </tr>
+            <tr>
+                <th>Suicides</th>
+                <td>@lastGame.Players.Sum(x => x.Sucides)</td>
+            </tr>
+            <tr>
+                <th>First Blood</th>
+                <td>@Html.Raw(lastGame.Players.SelectMany(x => x.Deaths).Where(x => x.DamageType != "MOD_SUICIDE").OrderBy(x => x.Time).FirstOrDefault()?.Player?.FormatToHtml())</td>
+            </tr>
+            <tr>
+                <th>Winner</th>
+                <td>
+                    @if (lastGame.IsTeamGame)
+                    {
+                        <img src="~/images/@(ViewData["Source"])main/flag-@lastGame.WonTeam-small.png" alt="@lastGame.WonTeam" title="@lastGame.WonTeam" />
+                    }
+                    else
+                    {
+                        @Html.Raw(lastGame.WonPlayer?.FormatToHtml())
+                    }
+                </td>
+            </tr>
+            @foreach (var param in lastGame.Params.Where(x => !excludedParams.Contains(x.Key)).OrderBy(x => x.Key))
+            {
+                <tr>
+                    <th>@param.Key</th>
+                    <td>@param.Value</td>
+                </tr>
+            }
+        </table>
+    </div>
+
+</div>
+
+
+@section Scripts{
+
+    <script src="~/lib/moment/moment.min.js"></script>
+    <script src="~/lib/chart/Chart.bundle.min.js"></script>
+
+    <script type="text/javascript">
+        var config = {
+            type: 'line',
+            data: {
+                labels: [0, @Math.Round(lastGame.Duration.TotalMinutes, 2)],
+                datasets:
+                [
+                    @foreach (var pd in playersData)
+                    {
+                    <text>
+                        {
+                            label: '@Html.Raw(pd.key.PureName())',
+                            backgroundColor: '@pd.color',
+                            borderColor: '@pd.color',
+                            data: [@pd.data],
+                            fill: false,
+                            lineTension: 0,
+                        },
+                    </text>
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                title: {
+                    display: false
+                },
+                legend: {
+                    display: false
+                },
+                scales: {
+                    xAxes: [{
+                        type: 'linear',
+                        scaleLabel: {
+                            display: true,
+                            labelString: 'Time'
+                        },
+                        ticks: {
+                            callback: function (value, index, values) {
+                                return value + 'm';
+                            }
+                        }
+                    }],
+                    yAxes: [{
+                        ticks: {
+                            suggestedMin: 0,
+                            suggestedMax: 10
+                        },
+                        scaleLabel: {
+                            display: true,
+                            labelString: 'Kills'
+                        }
+                    }]
+                }
+            }
+        };
+
+        $(document).ready(function () {
+            var ctx = document.getElementById('myChart').getContext('2d');
+            var myChart = new Chart(ctx, config);
+        });
+    </script>
+}

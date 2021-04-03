@@ -1,0 +1,135 @@
+﻿@model LogParser.Models.Log
+
+@{
+    ViewData["Title"] = "Most Recent";
+    ViewData["Source"] = Model.Source + "/";
+
+    var elo = Elo.CalculateFor(Model.Games.SkipLast(50));
+
+    async Task DrawEloDeltas(decimal val)
+    {
+        if (val >= 0)
+        {
+            <text><i class="fa fa-arrow-up text-success"></i> +@val.ToString("0.00")</text>
+        }
+        else
+        {
+            <text><i class="fa fa-arrow-down text-danger"></i> @val.ToString("0.00")</text>
+        }
+    }
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Most Recent Games</li>
+    </ol>
+</nav>
+
+<div class="row">
+
+
+    <div class="col-12 col-lg-4 mb-4">
+        <table class="table table-striped table-bordered table-sm">
+            <caption>
+                * ELO computed for last 50 games.<br />
+                ** ELO increment for last 50 games.
+            </caption>
+            <thead class="text-center">
+                <tr>
+                    <th colspan="3" class="bg-danger text-white text-center">ELO Rating for Last 50 Games</th>
+                </tr>
+                <tr class="text-center">
+                    <th>Player</th>
+                    <th>ELO*</th>
+                    <th>&#916; ELO**</th>
+                </tr>
+            </thead>
+            <tbody class="text-center">
+                @foreach (var item in Elo.CalculateFor(Model.Games.TakeLast(50)))
+                {
+                    <tr>
+                        <td><a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@item.Key.PureName()">@Html.Raw(item.Key.FormatToHtml())</a></td>
+                        <td>@item.Value.ToString("0.00")</td>
+                        <td class="text-nowrap">@{ await DrawEloDeltas(item.Value - (elo.ContainsKey(item.Key) ? elo[item.Key] : 500)); }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+
+    <div class="col mb-4">
+        <table class="table table-striped table-bordered table-sm">
+            <thead class="text-center">
+                <tr>
+                    <th colspan="5" class="bg-danger text-white text-center">Last 50 Games</th>
+                </tr>
+                <tr>
+                    <th>Id</th>
+                    <th>Type</th>
+                    <th>Name</th>
+                    <th>Players</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody class="text-center">
+                @foreach (var game in Model.Games.Reverse().Take(50))
+                {
+                    <tr>
+                        <th>@game.Id</th>
+                        <td>@game.Params["g_gametype"]</td>
+                        <td><a asp-area="" asp-controller="Home" asp-action="Game" asp-route-id="@game.Id">@(game.Params["mapname"])</a></td>
+                        <td>@game.Players.Count</td>
+                        <td>@game.Duration.ToTimeSpan()</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+
+
+    <div class="col mb-4">
+        <table class="table table-striped table-bordered table-sm">
+            <thead>
+                <tr class="text-center">
+                    <th colspan="4" class="bg-danger text-white">Ordered by Time</th>
+                </tr>
+                <tr class="text-center">
+                    <th>Typ</th>
+                    <th>Name</th>
+                    <th>Games</th>
+                    <th>Duration</th>
+                </tr>
+            </thead>
+            <tbody class="text-center">
+                @foreach (var type in Model.Games.GroupBy(x => x.Params["g_gametype"]).OrderByDescending(x => x.Sum(x => x.Duration.TotalSeconds)))
+                {
+                    var games = type.GroupBy(x => x.Params["mapname"]).OrderByDescending(x => x.Sum(x => x.Duration.TotalSeconds));
+                    <tr>
+                        <th rowspan="@games.Count()">
+                            <img src="~/images/@(ViewData["Source"])gametypes/small/@(type.Key).png" alt="@(type.Key)" class="rounded-lg img-fluid" /><br />
+                            <span class="badge badge-pill badge-danger">@TimeSpan.FromSeconds(type.Sum(x => x.Duration.TotalSeconds)).ToTimeSpan()</span>
+                        </th>
+                        <td><a asp-area="" asp-controller="Home" asp-action="Map" asp-route-id="@games.First().Key" asp-route-type="@type.Key">@games.First().Key</a></td>
+                        <td>@games.First().Count()</td>
+                        <td>@TimeSpan.FromSeconds(games.First().Sum(x => x.Duration.TotalSeconds)).ToTimeSpan()</td>
+                    </tr>
+                    @foreach (var game in games.Skip(1))
+                    {
+                        <tr>
+                            <td><a asp-area="" asp-controller="Home" asp-action="Map" asp-route-id="@game.Key" asp-route-type="@type.Key">@game.Key</a></td>
+                            <td>@game.Count()</td>
+                            <td>@TimeSpan.FromSeconds(game.Sum(x => x.Duration.TotalSeconds)).ToTimeSpan()</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+
+

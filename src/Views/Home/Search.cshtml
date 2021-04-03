@@ -1,0 +1,66 @@
+﻿@model LogParser.Models.SearchViewModel
+@{ 
+    ViewData["Source"] = Model.Data.Source + "/";
+}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a asp-area="" asp-controller="Home" asp-action="Index">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Search for player: @Model.Player</li>
+    </ol>
+</nav>
+
+<div class="row">
+
+    @if (Model.SearchResults.Any())
+    {
+    <div class="col mb-4">
+
+        <table class="table table-striped table-bordered table-sm table-responsive-md">
+            <thead class="text-center">
+                <tr>
+                    <th colspan="12" class="bg-danger text-white text-center">Search Result(s)</th>
+                </tr>
+                <tr>
+                    <th>Name</th>
+                    <th class="rotate90">Frags</th>
+                    <th class="rotate90">Total Kills</th>
+                    <th class="rotate90">Grenade Kills</th>
+                    <th class="rotate90">Melee Kills</th>
+                    <th class="rotate90">Head Shots</th>
+                    <th class="rotate90">Deaths</th>
+                    <th class="rotate90">Suicides</th>
+                    <th class="rotate90">Efficiency</th>
+                    <th class="rotate90">Frags Per Hour</th>
+                    <th class="rotate90">Avg. Time to Live</th>
+                    <th class="rotate90">Time</th>
+                </tr>
+            </thead>
+            <tbody class="text-center">
+                @foreach (var result in Model.SearchResults)
+                {
+                    <tr>
+                        <th><a asp-area="" asp-controller="Home" asp-action="Player" asp-route-id="@result.Name.PureName()">@Html.Raw(result.Name.FormatToHtml())</a></th>
+                        <td>@result.Frags</td>
+                        <td>@result.Kills</td>
+                        <td>@result.Grenades</td>
+                        <td>@result.Melees</td>
+                        <td>@result.HeadShots</td>
+                        <td>@result.Deaths</td>
+                        <td>@result.Suicides</td>
+                        <td>@(result.Efficiency)%</td>
+                        <td>@result.FPH</td>
+                        <td>@result.TTL</td>
+                        <td>@result.Time.ToTimeSpan()</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    }
+    else
+    {
+        <p>Player(s) not found.</p>
+    }
+
+</div>
