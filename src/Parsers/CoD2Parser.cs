@@ -89,9 +89,9 @@ namespace LogParser.Parsers
 
                 return log;
             }
-            catch (Exception exc)
+            catch (Exception)
             {
-                throw exc;
+                throw;
             }
         }
 
