@@ -14,4 +14,14 @@
     <None Include="wwwroot\*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="log-data\games_mp.log" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="log-data\games_mp.log">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
