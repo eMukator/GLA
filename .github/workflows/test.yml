@@ -13,6 +13,7 @@ jobs:
       run: |
         mkdir stop_app
         echo offline > "./stop_app/app_offline.htm"
+        echo ${{ secrets.FTP_HOST }}
         
     - name: Stop App
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
