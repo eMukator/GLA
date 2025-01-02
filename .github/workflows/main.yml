@@ -21,7 +21,7 @@ jobs:
       shell: pwsh
       run: |
         pushd './src'
-        dotnet build --configuration Release --output ./output
+        dotnet publish LogParser.csproj --output ./output
         popd
         
     - name: Add app_offline
