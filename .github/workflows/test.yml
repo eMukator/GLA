@@ -13,12 +13,11 @@ jobs:
       run: |
         mkdir stop_app
         echo offline > "./stop_app/app_offline.htm"
-        echo ${{ secrets.FTP_HOST }}
         
     - name: Stop App
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
-        server: ${{ secrets.FTP_HOST }}
+        server: ftps://mago.cz
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         protocol: ftps
