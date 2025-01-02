@@ -23,10 +23,10 @@ jobs:
         pushd './src'
         dotnet build --configuration Release --output ./output
         popd
-        mkdir stop_app
         
     - name: Add app_offline
       run: |
+        mkdir stop_app
         echo offline > "./stop_app/app_offline.htm"
         
     - name: Stop App
@@ -36,7 +36,7 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         protocol: ftps
-        security: strict
+        security: loose
         server-dir: gla/
         local-dir: ./stop_app/
         
@@ -47,8 +47,6 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         protocol: ftps
-        security: strict
+        security: loose
         local-dir: ./src/output/
         server-dir: gla/
-        #delete: "true"
-        #exclude: "'^logs/' '^README.md'"
