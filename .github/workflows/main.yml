@@ -25,12 +25,13 @@ jobs:
         popd
 
     - name: deploy
-      uses: kevinpainchaud/simple-ftp-deploy-action@v1.2.1
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
-        ftp_host: ${{ secrets.FTP_HOST }}
-        ftp_username: ${{ secrets.FTP_USERNAME }}
-        ftp_password: ${{ secrets.FTP_PASSWORD }}
-        local_source_dir: "output"
-        dist_target_dir: "gla"
+        server: ${{ secrets.FTP_HOST }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        protocol: ftps
+        local-dir: "./output/"
+        server-dir: "gla/"
         #delete: "true"
         #exclude: "'^logs/' '^README.md'"
