@@ -17,7 +17,7 @@ jobs:
     - name: Stop App
       uses: SamKirkland/FTP-Deploy-Action@4.3.3
       with:
-        server: ftps://mago.cz
+        server: 104.194.157.76
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         protocol: ftps
